@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('filename'); // Tên file ảnh
             $table->string('path');     // Đường dẫn tới file ảnh
             $table->timestamps();       // Thời gian tạo và cập nhật
+            $table->timestamp('delete_at')->nullable();
         });
     }
 
