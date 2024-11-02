@@ -3,89 +3,102 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\Services\ImageService;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use App\Models\Image;
-use Illuminate\Support\Facades\Log;
-use Carbon\Carbon;
+use Illuminate\Support\Facades\Cookie;
+use Illuminate\Support\Str;
 
 class FileUploadController extends Controller
 {
+    protected $imageService;
+
+    public function __construct(ImageService $imageService)
+    {
+        $this->imageService = $imageService;
+    }
+
     public function index()
     {
         return view('upload');
     }
 
     public function uploadImg(Request $request)
-    {
+{
+    // Tạo session ID nếu người dùng không đăng nhập
+    $sessionId = Auth::check() ? null : (request()->cookie('user_session') ?? Str::uuid());
+
+    // Nếu không có session ID cho người dùng chưa đăng nhập, lưu cookie
+    if ($sessionId) {
+        Cookie::queue('user_session', $sessionId, 30 * 24 * 60); // Lưu cookie 30 ngày
+    }
+
+    $uploadedFiles = [];
+    $errors = [];
+
+    // Kiểm tra nếu không có tệp nào được tải lên
+    if (!$request->hasFile('image') || !$request->file('image')) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Không có tệp nào được tải lên.',
+        ], 400);
+    }
+
+    foreach ($request->file('image') as $file) {
+        // Kiểm tra định dạng và kích thước file
+        if (!$file->isValid() || !in_array($file->getClientOriginalExtension(), ['jpg', 'jpeg', 'png', 'gif', 'svg', 'bmp', 'tif', 'webp', 'heic', 'avif', 'pdf', 'doc', 'docx', 'pptx', 'txt']) || $file->getSize() > 32768 * 1024) {
+            $errors[] = "File {$file->getClientOriginalName()} không hợp lệ hoặc vượt quá kích thước cho phép.";
+            continue; // Bỏ qua file không hợp lệ
+        }
+
+        // Xử lý file hợp lệ
         try {
-            $request->validate([
-                'image.*' => 'required|image|mimes:jpg,jpeg,png,gif,svg,bmp,tif,webp,heic,avif,pdf|max:32768',
-                'auto_delete' => 'required|numeric'
-            ]);
+            DB::beginTransaction(); // Bắt đầu transaction cho từng file hợp lệ
 
-            if ($request->hasFile('image')) {
-                $uploadedImages = [];
-                foreach ($request->file('image') as $file) {
-                    $filename = time() . '_' . $file->getClientOriginalName();
-                    $path = $file->storeAs('uploads', $filename, 'public');
+            $filename = time() . '_' . $file->getClientOriginalName();
+            $path = $file->storeAs('uploads', $filename, 'public');
 
-                    $autoDelete = $request->input('auto_delete');
-                    $deleteAt = $this->calculateDeleteAt($autoDelete);
+            $image = new Image();
+            $image->filename = $filename;
+            $image->path = $path;
+            $image->session_id = $sessionId;
+            $image->user_id = Auth::id();
+            $image->save();
 
-                    $image = Image::create([
-                        'filename' => $filename,
-                        'path' => $path,
-                        'delete_at' => $deleteAt
-                    ]);
+            DB::commit(); // Commit nếu lưu file thành công
 
-                    $uploadedImages[] = [
-                        'id' => $image->id,
-                        'url' => asset('storage/' . $image->path),
-                        'delete_at' => $deleteAt ? $deleteAt->toDateTimeString() : null
-                    ];
-                }
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Ảnh đã được tải lên thành công.',
-                    'images' => $uploadedImages
-                ]);
-            }
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Không có ảnh nào được chọn.'
-            ], 400);
+            $uploadedFiles[] = [
+                'filename' => $filename,
+                'path' => $path,
+                'url' => asset('storage/' . $path),
+            ];
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Có lỗi xảy ra khi tải lên ảnh: ' . $e->getMessage()
-            ], 500);
+            DB::rollBack(); // Rollback cho file nếu lưu không thành công
+            $errors[] = "Có lỗi khi tải lên file {$file->getClientOriginalName()}: " . $e->getMessage();
         }
     }
 
-    private function calculateDeleteAt($autoDelete)
+    return response()->json([
+        'success' => count($uploadedFiles) > 0,
+        'images' => $uploadedFiles,
+        'errors' => $errors,
+        'message' => count($uploadedFiles) > 0 ? 'Tải lên thành công' : 'Không có file nào hợp lệ được tải lên',
+    ]);
+}
+
+    public function viewImages(Request $request)
     {
-        if ($autoDelete == -1) {
-            return null;
+        // Lấy session ID từ cookie
+        $sessionId = $request->cookie('user_session');
+
+        if (!$sessionId) {
+            return response()->json(['error' => 'Không tìm thấy phiên người dùng.'], 404);
         }
 
-        $now = Carbon::now();
+        // Truy vấn ảnh dựa trên session ID
+        $uploadedImages = $this->imageService->getImagesBySessionId($sessionId);
 
-        switch ($autoDelete) {
-            case 0.33:
-                return $now->addSeconds(20);
-            case 0.0167:
-                return $now->addMinute();
-            case 1:
-                return $now->addHour();
-            case 24:
-                return $now->addDay();
-            case 168:
-                return $now->addWeek();
-            case 720:
-                return $now->addMonth();
-            default:
-                return $now->addMinutes($autoDelete);
-        }
+        return view('view-images', compact('uploadedImages'));
     }
 }

@@ -7,7 +7,7 @@ use Carbon\Carbon;
 
 class Image extends Model
 {
-    protected $fillable = ['filename', 'path', 'delete_at'];
+    protected $fillable = ['filename', 'path', 'delete_at', 'user_id'];
 
     protected $casts = [
         'delete_at' => 'datetime',
@@ -21,5 +21,10 @@ class Image extends Model
     public function getDeleteAtAttribute($value)
     {
         return $value ? Carbon::parse($value) : null;
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
     }
 }
