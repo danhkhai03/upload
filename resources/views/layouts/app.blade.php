@@ -424,7 +424,7 @@ fileUpload.addEventListener('change', function() {
     
         function showUploadSuccess(images) {
             const successContainer = document.getElementById('showUploadSuccess');
-            const successPreviewContainer = successContainer.querySelector('.flex.justify-center.mb-6');
+            const successPreviewContainer = document.getElementById('successPreviewContainer');
             const embedCodeText = successContainer.querySelector('#embed-code-text');
     
             // Xóa nội dung cũ trong preview container
@@ -434,34 +434,38 @@ fileUpload.addEventListener('change', function() {
             images.forEach((image, index) => {
                 const imgDiv = document.createElement('div');
                 imgDiv.className = 'relative inline-block h-24 w-24 border border-gray-300 rounded-lg overflow-hidden';
-    
+                
+                console.log('Image URL:', image.url); // Kiểm tra giá trị của image.url
+               
+                let fileType = image.type || getFileTypeFromUrl(image.url);
                 // Kiểm tra nếu là ảnh
-                if (image.url) {
+                if (image.url && fileType.startsWith('image/')) {
+                    // Nếu là ảnh, hiển thị ảnh
                     imgDiv.innerHTML = `
-                        <img src="${image.url}" class="h-full w-full object-cover">
-                        <div class="absolute top-1 left-0.5 flex space-x-2">
-                            <button class="remove-image bg-white w-5 h-5 rounded-full shadow-md hover:bg-gray-100 transition-colors duration-200 flex items-center justify-center" data-index="${index}">
-                                <i class="fas fa-times text-gray-600 text-xs"></i>
-                            </button>
-                        </div>
+                        <a href="${image.url}" target="_blank">
+                            <img src="${image.url}" class="h-full w-full object-cover">
+                        </a>
                     `;
                 } else {
-                    // Hiển thị icon cho các loại file không phải ảnh
+                    // Nếu không phải ảnh, hiển thị icon tương ứng
                     let iconClass = 'fas fa-file'; // Mặc định là icon file
-                    if (image.type === 'application/pdf') {
+                    if (fileType === 'application/pdf') {
                         iconClass = 'fas fa-file-pdf'; // Icon PDF
-                    } else if (image.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
-                               image.type === 'application/msword') {
+                    } else if (fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
+                               fileType === 'application/msword') {
                         iconClass = 'fas fa-file-word'; // Icon Word
-                    } else if (image.type === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' || 
-                               image.type === 'application/vnd.ms-powerpoint') {
+                    } else if (fileType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' || 
+                               fileType === 'application/vnd.ms-powerpoint') {
                         iconClass = 'fas fa-file-powerpoint'; // Icon PowerPoint
-                    } else if (image.type.startsWith('application/vnd.ms-excel') || 
-                               image.type.startsWith('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')) {
+                    } else if (fileType.startsWith('application/vnd.ms-excel') || 
+                               fileType.startsWith('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')) {
                         iconClass = 'fas fa-file-excel'; // Icon Excel
                     }
+
                     imgDiv.innerHTML = `
-                        <i class="${iconClass} text-gray-600 text-8xl"></i>
+                        <a href="${image.url}" target="_blank">
+                            <i class="${iconClass} text-gray-600 text-8xl"></i>
+                        </a>
                         <div class="absolute top-1 left-0.5 flex space-x-2">
                             <button class="remove-image bg-white w-5 h-5 rounded-full shadow-md hover:bg-gray-100 transition-colors duration-200 flex items-center justify-center" data-index="${index}">
                                 <i class="fas fa-times text-gray-600 text-xs"></i>
@@ -471,6 +475,33 @@ fileUpload.addEventListener('change', function() {
                 }
                 successPreviewContainer.appendChild(imgDiv);
             });
+            function getFileTypeFromUrl(url) {
+            const extension = url.split('.').pop().toLowerCase();
+            switch (extension) {
+                case 'jpg':
+                case 'jpeg':
+                case 'png':
+                case 'gif':
+                case 'bmp':
+                case 'webp':
+                case 'tiff':
+                case 'tif':
+                    return 'image/' + extension;
+                case 'pdf':
+                    return 'application/pdf';
+                case 'doc':
+                case 'docx':
+                    return 'application/msword';
+                case 'ppt':
+                case 'pptx':
+                    return 'application/vnd.ms-powerpoint';
+                case 'xls':
+                case 'xlsx':
+                    return 'application/vnd.ms-excel';
+                default:
+                    return 'application/octet-stream'; // Mặc định cho các loại tệp không xác định
+            }
+        }
     
             // Cập nhật mã nhúng
             embedCodeText.value = images[0].url;

@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\Image;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 class ImageRepository implements ImageRepositoryInterface
 {
@@ -31,6 +32,9 @@ class ImageRepository implements ImageRepositoryInterface
     public function update($id, array $data)
     {
         $image = $this->find($id);
+        if (!$image) {
+            throw new ModelNotFoundException("Image not found");
+        }
         $image->update($data);
         return $image;
     }
@@ -38,8 +42,12 @@ class ImageRepository implements ImageRepositoryInterface
     public function delete($id)
     {
         $image = $this->find($id);
+        if (!$image) {
+            throw new ModelNotFoundException("Image not found");
+        }
         return $image->delete();
     }
+
     public function findBySessionId($sessionId)
     {
         return $this->model->where('session_id', $sessionId)->get();

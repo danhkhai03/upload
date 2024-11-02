@@ -7,7 +7,7 @@ use Carbon\Carbon;
 
 class Image extends Model
 {
-    protected $fillable = ['filename', 'path', 'delete_at', 'user_id'];
+    protected $fillable = ['filename', 'path', 'delete_at', 'user_id', 'session_id'];
 
     protected $casts = [
         'delete_at' => 'datetime',

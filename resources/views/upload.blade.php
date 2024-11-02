@@ -17,7 +17,7 @@
                 <div class="container mx-auto h-full flex flex-col">
                     <form action="{{ route('uploadImg') }}" method="post" enctype="multipart/form-data" id="uploadForm">
                         @csrf
-                        <div class="flex-grow p-6 flex flex-col items-center justify-center">
+                        <div class="flex-grow p-6 flex flex-col items-center justify-center ">
                             <div id="dropZoneContainer" class="w-full max-w-2xl">
                                 <div class=" rounded-lg p-8 text-center" id="dropZone">
                                     <i class="fa-solid fa-cloud-arrow-up text-8xl text-sky-600 mb-4"></i>
@@ -104,8 +104,8 @@
                                         <a href="#" class="text-blue-500 hover:underline">đăng nhập</a> to save this content into your account.
                                     </p>
                                 </div>
-                                <div class="flex justify-center mb-6">
-                                    ${images.map(image => `<img src="${image.url}" alt="Uploaded image" class="w-32 h-32 object-cover rounded-lg shadow-md mx-2">`).join('')}
+                                <div id="successPreviewContainer" class="flex justify-center mb-6">
+                                    <!-- Ảnh hoặc icon sẽ được thêm vào đây -->
                                 </div>
                                 <div class="mb-6">
                                     <label for="embed-code" class="block text-sm font-medium text-gray-700 mb-2">Mã nhúng</label>
@@ -140,4 +140,3 @@
     </form>
 </body>
 @endsection
-

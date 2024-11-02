@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Repositories\ImageRepositoryInterface;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cookie;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 
@@ -17,34 +19,62 @@ class ImageService
         $this->imageRepository = $imageRepository;
     }
 
-    public function uploadImages(array $files, $autoDelete)
+    public function uploadImages(array $files, $autoDelete, $sessionId)
     {
         $uploadedFiles = [];
-        $sessionId = request()->cookie('user_session') ?? Str::uuid();
-        Cookie::queue('user_session', $sessionId, 30 * 24 * 60); // Lưu cookie 30 ngày
+        $errors = [];
 
         foreach ($files as $file) {
-            $filename = time() . '_' . $file->getClientOriginalName();
-            $path = $file->storeAs('uploads', $filename, 'public');
+            // Kiểm tra kích thước file
+            if ($file->getSize() > 32 * 1024 * 1024) {
+                $errors[] = "File {$file->getClientOriginalName()} vượt quá kích thước tối đa cho phép.";
+                continue; // Bỏ qua file nếu kích thước quá lớn
+            }
 
-            $data = [
-                'filename' => $filename,
-                'path' => $path,
-                'session_id' => Auth::check() ? null : $sessionId,
-                'user_id' => Auth::id(),
-            ];
+            // Kiểm tra định dạng file
+            if (!$file->isValid() || !in_array($file->getClientOriginalExtension(), ['jpg', 'jpeg', 'png', 'gif', 'svg', 'bmp', 'tif', 'webp', 'heic', 'avif', 'pdf', 'doc', 'docx', 'pptx', 'txt'])) {
+                $errors[] = "File {$file->getClientOriginalName()} không hợp lệ.";
+                continue; // Bỏ qua file không hợp lệ
+            }
 
-            $this->imageRepository->create($data);
+            // Xử lý file hợp lệ
+            DB::beginTransaction(); // Bắt đầu transaction cho từng file
 
-            $uploadedFiles[] = [
-                'filename' => $filename,
-                'path' => $path,
-                'url' => asset('storage/' . $path),
-            ];
+            try {
+                $filename = time() . '_' . $file->getClientOriginalName();
+                $path = $file->storeAs('uploads', $filename, 'public');
+
+                $data = [
+                    'filename' => $filename,
+                    'path' => $path,
+                    'session_id' => $sessionId, // Sử dụng session_id được truyền vào
+                    'user_id' => Auth::id(),
+                ];
+
+                $this->imageRepository->create($data);
+
+                $uploadedFiles[] = [
+                    'filename' => $filename,
+                    'path' => $path,
+                    'url' => asset('storage/' . $path),
+                ];
+
+                DB::commit(); // Commit nếu lưu file thành công
+            } catch (\Exception $e) {
+                DB::rollBack(); // Rollback nếu có lỗi
+                Log::error("Có lỗi khi tải lên file {$file->getClientOriginalName()}: " . $e->getMessage());
+                $errors[] = "Có lỗi khi tải lên file {$file->getClientOriginalName()}: " . $e->getMessage();
+            }
         }
 
-        return $uploadedFiles;
+        return [
+            'success' => count($uploadedFiles) > 0,
+            'images' => $uploadedFiles,
+            'errors' => $errors,
+            'message' => count($uploadedFiles) > 0 ? 'Tải lên thành công' : 'Không có file nào hợp lệ được tải lên',
+        ];
     }
+
     public function getImagesBySessionId($sessionId)
     {
         return $this->imageRepository->findBySessionId($sessionId);
